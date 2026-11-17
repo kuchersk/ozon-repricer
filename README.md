@@ -15,3 +15,4 @@
 - [Развёртывание](docs/DEPLOYMENT.md)
 
 - [Запуск локального MVP](docs/LOCAL_MVP.md)
+- [Подготовка развёртывания в Coolify](docs/COOLIFY.md)

@@ -43,7 +43,7 @@ chrome.alarms.onAlarm.addListener(async alarm => {
     await saveMeasurement({...card, source: 'automatic'});
     succeeded = true;
     const sent = await sendMeasurementToSite(card);
-    await chrome.storage.local.set({ozonTestStatus: sent ? 'Автозамер сохранён и отправлен на сайт.' : 'Автозамер сохранён. Локальный сайт не принял замер.'});
+    await chrome.storage.local.set({ozonTestStatus: sent ? 'Автозамер сохранён и отправлен на сайт.' : 'Автозамер сохранён. Сайт не принял замер.'});
   } catch (error) {
     await chrome.storage.local.set({ozonTestStatus: 'Автозамер не выполнен: ' + error.message});
   } finally {
