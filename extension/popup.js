@@ -54,7 +54,7 @@ readButton.addEventListener('click', async () => {
       showHistory(await saveMeasurement(card));
       lines.push('Замер сохранён.');
       if (card.sku === '275647765' && card.isMoscow) {
-        lines.push(await sendMeasurementToSite(card) ? 'Замер отправлен на сайт.' : 'Локальный сайт не принял замер.');
+        lines.push(await sendMeasurementToSite(card) ? 'Замер отправлен на сайт.' : 'Сайт не принял замер.');
       }
     } catch {
       lines.push('Замер прочитан, но сохранить его не удалось.');

@@ -3,14 +3,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { readSellerPrice, assess, defaultPolicy, validPolicy } = require('./dry-run.cjs');
 const { writePriceOnce } = require('./price-write.cjs');
-const store = path.join(__dirname, 'measurements.jsonl');
-const log = path.join(__dirname, 'decisions.jsonl');
+const {hosted,port,origin,dashboardAllowed,ingestionAllowed} = require('./runtime.cjs');
+const data = hosted ? '/data' : __dirname;
+if (hosted) fs.accessSync(data,fs.constants.W_OK);
+const store = path.join(data, 'measurements.jsonl');
+const log = path.join(data, 'decisions.jsonl');
 const decisions = fs.existsSync(log) ? fs.readFileSync(log,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : [];
-const policyFile = path.join(__dirname, 'price-policy.json');
-const legacyAudit = path.join(__dirname, 'trial-write.local.jsonl');
+const policyFile = path.join(data, 'price-policy.json');
+const legacyAudit = path.join(data, 'trial-write.local.jsonl');
 let policy = fs.existsSync(policyFile) ? JSON.parse(fs.readFileSync(policyFile,'utf8')) : defaultPolicy;
-const writeAudit = path.join(__dirname, 'price-writes.jsonl');
-const writeKey = process.env.OZON_OBSERVER_WRITE_KEY;
+const writeAudit = path.join(data, 'price-writes.jsonl');
+const writeKey = hosted ? null : process.env.OZON_OBSERVER_WRITE_KEY;
 let evaluating = false;
 let writing = false;
 function readJournal(file) {
@@ -34,7 +37,6 @@ function latestMeasurement() {
   return rows.reduce((best, row) => !best || Date.parse(row.readAt) > Date.parse(best.readAt) ? row : best, null);
 }
 const {sku,grayTargetRub,greenFloorRub} = require('./product.cjs');
-const port = 8765;
 function json(res, status, data) {
   res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});
   res.end(JSON.stringify(data));
@@ -47,7 +49,14 @@ function valid(card) {
     (card.greenRub === null || rub(card.greenRub)) && age >= -60000 && age <= 10800000;
 }
 const server = http.createServer(async (req,res) => {
-  if (req.headers.host !== '127.0.0.1:' + port) return json(res,403,{error:'Invalid host'});
+  if (req.method === 'GET' && req.url === '/health') return json(res,200,{ok:true});
+  if (req.headers.host !== new URL(origin).host ||
+      (hosted && req.headers['x-forwarded-proto'] !== 'https')) return json(res,403,{error:'Invalid origin'});
+  const intake = req.method === 'POST' && req.url === '/measurements';
+  if (!intake && !dashboardAllowed(req)) {
+    res.setHeader('WWW-Authenticate','Basic realm="Ozon Observer", charset="UTF-8"');
+    return json(res,401,{error:'Dashboard authentication required'});
+  }
   if (req.method === 'GET' && req.url === '/') {
     res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});
     return res.end(fs.readFileSync(path.join(__dirname,'index.html')));
@@ -62,7 +71,7 @@ const server = http.createServer(async (req,res) => {
     } catch { return json(res,500,{error:'Не удалось прочитать журнал записи.'}); }
   }
   if (req.method === 'POST' && req.url === '/apply-price') {
-    if (req.headers.origin !== 'http://127.0.0.1:' + port) return json(res,403,{error:'Откройте локальный сайт.'});
+    if (req.headers.origin !== origin) return json(res,403,{error:'Откройте локальный сайт.'});
     if (!writeKey) return json(res,403,{error:'Сайт запущен без ключа на запись.'});
     if (writing || evaluating) return json(res,409,{error:'Дождитесь окончания текущей операции.'});
     writing = true;
@@ -106,7 +115,7 @@ const server = http.createServer(async (req,res) => {
   }
   if (req.method === 'GET' && req.url === '/policy') return json(res,200,policy);
   if (req.method === 'POST' && req.url === '/policy') {
-    if (req.headers.origin !== 'http://127.0.0.1:' + port) return json(res,403,{error:'Open the local dashboard'});
+    if (req.headers.origin !== origin) return json(res,403,{error:'Open the local dashboard'});
     try {
       let body = '';
       for await (const chunk of req) {
@@ -125,7 +134,7 @@ const server = http.createServer(async (req,res) => {
     }
   }
   if (req.method === 'POST' && req.url === '/dry-run') {
-    if (req.headers.origin !== 'http://127.0.0.1:' + port) return json(res,403,{error:'Open the local dashboard'});
+    if (req.headers.origin !== origin) return json(res,403,{error:'Open the local dashboard'});
     if (evaluating || writing) return json(res,409,{error:'Dry-run already in progress'});
     evaluating = true;
     try {
@@ -147,7 +156,7 @@ const server = http.createServer(async (req,res) => {
     }
   }
   if (req.method !== 'POST' || req.url !== '/measurements') return json(res,404,{error:'Not found'});
-  if (!/^chrome-extension:\/\/[a-p]{32}$/.test(req.headers.origin || '') ||
+  if (!ingestionAllowed(req) ||
       req.headers['content-type'] !== 'application/json') return json(res,403,{error:'Extension request required'});
   try {
     let body = '';
@@ -168,4 +177,4 @@ const server = http.createServer(async (req,res) => {
     return json(res,400,{error:'Could not save measurement'});
   }
 });
-server.listen(port,'127.0.0.1',() => console.log('http://127.0.0.1:' + port));
+server.listen(port,hosted ? '0.0.0.0' : '127.0.0.1',() => console.log('Observer listening on ' + port));

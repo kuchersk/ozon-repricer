@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<title>Подключение сайта Ozon Repricer</title>
+<style>
+body{font:16px system-ui;max-width:600px;margin:48px auto;padding:0 20px}
+label{display:grid;gap:6px;margin:18px 0}input,button{font:inherit;padding:8px}
+</style>
+<h1>Подключение сайта</h1>
+<form id="connection">
+<label>Адрес HTTPS <input name="origin" type="url" placeholder="https://repricer.example.com" required></label>
+<label>Токен приёма замеров <input name="token" type="password" autocomplete="off" required></label>
+<button>Подключить</button>
+<button type="button" id="reset">Использовать локальный сайт</button>
+</form>
+<p id="status" role="status"></p>
+<script src="options.js"></script>
+</html>

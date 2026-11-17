@@ -14,8 +14,12 @@ async function saveMeasurement(card) {
 
 async function sendMeasurementToSite(card) {
   try {
-    const response = await fetch('http://127.0.0.1:8765/measurements', {
-      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(card),
+    const {ozonSite} = await chrome.storage.local.get('ozonSite');
+    const origin = ozonSite?.origin || 'http://127.0.0.1:8765';
+    const headers = {'Content-Type':'application/json'};
+    if (ozonSite) headers.Authorization = 'Bearer ' + ozonSite.token;
+    const response = await fetch(origin + '/measurements', {
+      method: 'POST', redirect:'error', headers, body: JSON.stringify(card),
       signal: AbortSignal.timeout(4000),
     });
     return response.ok;
