@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ozon Repricer · Наблюдение</title>
+<style>
+:root{color-scheme:light;font:16px system-ui;color:#14253a;background:#f4f7fb}
+main{max-width:880px;margin:8vh auto;padding:0 20px}header{border-top:5px solid #145bdf;padding-top:24px}
+h1{margin:0;font-size:clamp(28px,6vw,44px)}p{color:#425470}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:28px 0}
+article,.history{background:white;border:1px solid #dce4ef;border-radius:12px;padding:18px}
+article strong{display:block;font-size:27px;margin-top:7px}table{border-collapse:collapse;width:100%;text-align:left}th,td{padding:10px 6px;border-bottom:1px solid #dce4ef}h2{margin-top:0}form{display:flex;flex-wrap:wrap;gap:12px;align-items:end}label{display:grid;gap:4px}input{max-width:9rem;padding:5px}
+</style>
+<main>
+<header><h1>Шумофф М3</h1><p>16 листов · SKU 275647765 · Москва</p><p id="status" role="status">Загружаю замеры…</p></header>
+<section class="cards" aria-label="Цены">
+<article>Серая цена<strong id="gray">—</strong></article>
+<article>Ориентир<strong id="target">—</strong></article>
+<article>Отклонение<strong id="delta">—</strong></article>
+<article>Зелёная цена<strong id="green">—</strong><small id="floor">Порог —</small></article>
+</section>
+<section class="history" style="margin-bottom:16px">
+<h2>Проверка решения без записи</h2>
+<form id="policy">
+  <label>Минимальная предельная цена, ₽ <input name="floorRub" type="number" required min="1" max="10000000" placeholder="Не задана"></label>
+  <label>Шаг, ₽ <input name="stepRub" type="number" required min="1" max="1000"></label>
+  <label>Пауза после записи, мин <input name="cooldownMinutes" type="number" required min="1" max="1440"></label>
+  <label>Изменений за 24 часа <input name="maxDailyChanges" type="number" required min="1" max="24"></label>
+  <button type="submit">Сохранить настройки</button>
+</form>
+<p id="policy-status" role="status"></p>
+<button id="dry-run">Проверить решение</button>
+<p id="dry-status" role="status"></p>
+<button id="apply-price" hidden>Применить пробное предложение</button>
+<p id="write-status" role="status"></p>
+<div style="overflow:auto"><table><thead><tr><th>Время, МСК</th><th>Серая</th><th>Предельная</th><th>Решение</th></tr></thead><tbody id="decisions"></tbody></table></div>
+</section>
+<section class="history"><h2>История замеров</h2><table><thead><tr><th>Время, МСК</th><th>Серая</th><th>Зелёная</th></tr></thead><tbody id="rows"></tbody></table></section>
+</main>
+<script>
+const format = n => n === null || n === undefined ? '—' : new Intl.NumberFormat('ru').format(n)+' ₽';
+const clock = t => new Date(t).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'});
+const set = (id,text) => document.getElementById(id).textContent = text;
+async function refresh() {
+  try {
+    const product = await fetch('/product').then(response => response.json());
+    set('target',format(product.grayTargetRub));
+    set('floor','Порог ' + format(product.greenFloorRub));
+    const response = await fetch('/measurements',{cache:'no-store'});
+    if (!response.ok) throw new Error();
+    const rows = await response.json();
+    const latest = rows[0];
+    if (!latest) {set('status','Ожидаем первый замер от расширения.');return;}
+    const age = Math.max(0,Math.floor((Date.now()-Date.parse(latest.readAt))/60000));
+    const delta = latest.grayRub-product.grayTargetRub;
+    set('gray',format(latest.grayRub));
+    set('green',format(latest.greenRub));
+    set('delta',(delta>0?'+':'')+format(delta));
+    set('status',(age>=180?'Замер устарел. ':'')+'Последний замер '+age+' мин назад.');
+    document.getElementById('rows').replaceChildren(...rows.map(row=>{
+      const tr=document.createElement('tr');
+      for (const value of [clock(row.readAt),format(row.grayRub),format(row.greenRub)]) tr.insertCell().textContent=value;
+      return tr;
+    }));
+  } catch {set('status','Не удалось загрузить замеры.');}
+}
+const policyForm = document.querySelector('#policy');
+fetch('/policy').then(res => res.json()).then(policy => {
+  for (const field of Object.keys(policy)) policyForm.elements.namedItem(field).value = policy[field] ?? '';
+}).catch(() => set('policy-status','Не удалось загрузить настройки.'));
+policyForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    const policy = Object.fromEntries([...new FormData(policyForm)].map(([key,val]) => [key,Number(val)]));
+    const res = await fetch('/policy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(policy)});
+    if (!res.ok) throw new Error();
+    set('policy-status','Настройки сохранены для проверки без записи.');
+  } catch { set('policy-status','Не удалось сохранить настройки.'); }
+});
+const reasonText = {
+  policy_unset:'Задайте минимальную предельную цену',
+  seller_floor:'Достигнут предел допустимого снижения',
+  promotion_limit_unconfirmed:'Ограничение акций не подтверждено',
+  seller_changed_externally:'Предельная цена или лимит изменились вне пробной записи',
+  waiting_for_post_write_measurement:'Нужен замер после последней записи',
+  cooldown:'Действует пауза после последней записи',
+  daily_limit:'Достигнут лимит изменений за 24 часа',
+  no_measurement:'Нет замера витрины',
+  measurement_stale:'Замер устарел',
+  green_unconfirmed:'Зелёная цена не подтверждена',
+  green_below_floor:'Зелёная цена ниже порога',
+  at_target:'Серая цена совпадает с ориентиром',
+  green_at_floor:'Зелёная цена на пороге. Снижение пропущено',
+  trial_baseline_changed:'Исходные условия пробного шага изменились',
+  above_target_step_unset:'Выше ориентира. Шаг снижения пока не задан',
+  below_target_step_unset:'Ниже ориентира. Шаг повышения пока не задан',
+  seller_not_configured:'Ключ Seller API не задан',
+  seller_price_unconfirmed:'Предельная цена не подтверждена',
+  seller_unreachable:'Нет ответа Seller API',
+};
+async function loadDecisions() {
+  const res = await fetch('/decisions');
+  if (!res.ok) throw new Error();
+  const rows = await res.json();
+  currentDecision = rows[0];
+  await refreshWriteStatus();
+  document.getElementById('decisions').replaceChildren(...rows.map(row => {
+    const tr = document.createElement('tr');
+    const result = row.proposal
+      ? 'Пробное предложение: ' + format(row.sellerPriceRub) + ' → ' + format(row.proposal.priceRub)
+      : reasonText[row.reason] || row.reason.replace('seller_http_', 'Seller API: HTTP ');
+    const base = format(row.sellerPriceRub);
+    for (const cell of [clock(row.checkedAt),format(row.grayRub),base,result]) tr.insertCell().textContent = cell;
+    return tr;
+  }));
+}
+
+let currentDecision;
+const applyButton = document.getElementById('apply-price');
+
+async function refreshWriteStatus() {
+  const res = await fetch('/write-status');
+  if (!res.ok) throw new Error();
+  const status = await res.json();
+  applyButton.hidden = !status.configured || status.busy || status.used || status.blocked || !currentDecision?.proposal;
+  if (status.blocked && !status.busy) set('write-status','Запись отправлялась, но оба поля не подтверждены. Проверьте Ozon Seller.');
+  else if (status.last === 'confirmed') set('write-status','Пробная запись подтверждена. Отправьте свежий замер витрины.');
+}
+applyButton.addEventListener('click', async () => {
+  const decision = currentDecision;
+  const amount = decision?.proposal?.priceRub;
+  if (!amount || !confirm('Изменить предельную цену Шумофф М3 с ' + format(decision.sellerPriceRub) + ' до ' + format(amount) + '?')) return;
+  applyButton.disabled = true;
+  set('write-status','Проверяю условия и сверяю запись с Ozon…');
+  try {
+    const res = await fetch('/apply-price',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({checkedAt:decision.checkedAt,priceRub:amount})});
+    const result = await res.json();
+    set('write-status',result.confirmed ? 'Ozon подтвердил ' + format(result.priceRub) + '. Отправьте свежий замер витрины.' : result.error);
+    await refreshWriteStatus();
+  } catch { set('write-status','Ответ не получен. Проверьте Ozon Seller перед любыми изменениями.'); }
+  finally { applyButton.disabled = false; }
+});
+
+const dryButton = document.getElementById('dry-run');
+dryButton.addEventListener('click', async () => {
+  dryButton.disabled = true;
+  set('dry-status','Читаю предельную цену и проверяю последний замер…');
+  try {
+    const res = await fetch('/dry-run',{method:'POST'});
+    if (!res.ok) throw new Error();
+    const decision = await res.json();
+    await loadDecisions();
+    set('dry-status', decision.sellerError ? (reasonText[decision.sellerError] || 'Seller API вернул ошибку') : 'Проверка сохранена.');
+  } catch { set('dry-status','Не удалось сохранить проверку.'); }
+  finally { dryButton.disabled = false; }
+});
+loadDecisions().catch(() => set('dry-status','Не удалось загрузить журнал.'));
+refresh();
+setInterval(refresh,3000);
+</script>
+</html>

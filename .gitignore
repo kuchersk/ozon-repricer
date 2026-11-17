@@ -1,0 +1,7 @@
+*.local.json
+*.jsonl
+price-policy.json
+price-policy.json.tmp
+.env
+.env.*
+node_modules/

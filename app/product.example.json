@@ -1,0 +1,6 @@
+{
+  "sellerProductId": 12345678,
+  "sellerOfferId": "example-offer",
+  "grayTargetRub": 1000,
+  "greenFloorRub": 900
+}
