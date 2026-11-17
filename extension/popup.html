@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<title>Проверка серой цены Ozon</title>
+<style>
+body { font: 15px system-ui; width: 320px; padding: 16px; margin: 0; }
+button { font: inherit; padding: 8px 14px; }
+pre { font: inherit; white-space: pre-wrap; margin-bottom: 0; }
+ol { padding-left: 22px; max-height: 220px; overflow: auto; }
+li { margin-bottom: 8px; }
+</style>
+<button id="read">Считать цену</button>
+<button id="schedule">Проверить автозамер</button>
+<button id="recurring">Включить каждые 3 часа</button>
+<button id="stop">Остановить</button>
+<p id="test-status" role="status"></p>
+<pre id="result" role="status"></pre>
+<h2>Последние замеры</h2>
+<ol id="history"></ol>
+<script src="history.js"></script>
+<script src="extract.js"></script>
+<script src="popup.js"></script>
+</html>

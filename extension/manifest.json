@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Проверка серой цены Ozon",
+  "version": "0.5.0",
+  "description": "Сверка цены Шумофф М3 с прайсом в открытой вкладке Ozon.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "alarms"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ]
+}
