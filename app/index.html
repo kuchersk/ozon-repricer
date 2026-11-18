@@ -110,7 +110,7 @@ async function loadDecisions() {
       ? 'Пробное предложение: ' + format(row.sellerPriceRub) + ' → ' + format(row.proposal.priceRub)
       : reasonText[row.reason] || row.reason.replace('seller_http_', 'Seller API: HTTP ');
     const base = format(row.sellerPriceRub);
-    for (const cell of [clock(row.checkedAt),format(row.grayRub),base,result]) tr.insertCell().textContent = cell;
+    for (const cell of [clock(row.checkedAt) + (row.source === 'automatic' ? ' · авто' : ''),format(row.grayRub),base,result]) tr.insertCell().textContent = cell;
     return tr;
   }));
 }
@@ -122,7 +122,7 @@ async function refreshWriteStatus() {
   const res = await fetch('/write-status');
   if (!res.ok) throw new Error();
   const status = await res.json();
-  applyButton.hidden = !status.configured || status.busy || status.used || status.blocked || !currentDecision?.proposal;
+  applyButton.hidden = !status.configured || status.busy || status.used || status.blocked || currentDecision?.source === 'automatic' || !currentDecision?.proposal;
   if (status.blocked && !status.busy) set('write-status','Запись отправлялась, но оба поля не подтверждены. Проверьте Ozon Seller.');
   else if (status.last === 'confirmed') set('write-status','Пробная запись подтверждена. Отправьте свежий замер витрины.');
 }
@@ -157,5 +157,6 @@ dryButton.addEventListener('click', async () => {
 loadDecisions().catch(() => set('dry-status','Не удалось загрузить журнал.'));
 refresh();
 setInterval(refresh,3000);
+setInterval(() => { if (!dryButton.disabled && !applyButton.disabled) loadDecisions().catch(() => {}); },5000);
 </script>
 </html>

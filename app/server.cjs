@@ -17,6 +17,37 @@ const trialWriteEnabled = !hosted || process.env.OZON_ENABLE_TRIAL_WRITE === '1'
 const writeKey = trialWriteEnabled ? process.env.OZON_OBSERVER_WRITE_KEY : null;
 let evaluating = false;
 let writing = false;
+const autoDryRun = process.env.OZON_AUTO_DRY_RUN === '1';
+let pendingMeasurement = false;
+
+async function recordDecision(source) {
+  let seller;
+  let sellerError;
+  try { seller = await readSellerPrice(); }
+  catch (error) {
+    sellerError = /^seller_(?:not_configured|http_\d{3}|price_unconfirmed)$/.test(error.message)
+      ? error.message : 'seller_unreachable';
+  }
+  const result = assess(latestMeasurement(),seller,sellerError,Date.now(),policy,writeState().confirmed);
+  const decision = {...result, source};
+  fs.appendFileSync(log,JSON.stringify(decision)+'\n','utf8');
+  decisions.push(decision);
+  return decision;
+}
+
+async function drainMeasurements() {
+  if (!pendingMeasurement || evaluating || writing) return;
+  pendingMeasurement = false;
+  evaluating = true;
+  try {
+    if (decisions.at(-1)?.readAt !== latestMeasurement()?.readAt) await recordDecision('automatic');
+  } catch {
+    console.error('Could not save automatic dry-run decision.');
+  } finally {
+    evaluating = false;
+    if (pendingMeasurement) void drainMeasurements();
+  }
+}
 function readJournal(file) {
   return fs.existsSync(file) ? fs.readFileSync(file,'utf8').trim().split(/\r?\n/).filter(Boolean).map(JSON.parse) : [];
 }
@@ -87,7 +118,7 @@ const server = http.createServer(async (req,res) => {
       const state = writeState();
       if (state.used || state.blocked) return json(res,409,{error:'Пробная запись уже отправлялась. Проверьте её результат.'});
       const selected = decisions.at(-1);
-      if (!selected?.proposal || selected.checkedAt !== requested?.checkedAt ||
+      if (!selected?.proposal || selected.source === 'automatic' || selected.checkedAt !== requested?.checkedAt ||
           selected.proposal.priceRub !== requested.priceRub) {
         return json(res,409,{error:'Предложение изменилось. Запустите проверку ещё раз.'});
       }
@@ -112,6 +143,7 @@ const server = http.createServer(async (req,res) => {
       return json(res,500,{error:'Результат записи не подтверждён. Проверьте журнал перед любыми изменениями.'});
     } finally {
       writing = false;
+      void drainMeasurements();
     }
   }
   if (req.method === 'GET' && req.url === '/policy') return json(res,200,policy);
@@ -139,21 +171,12 @@ const server = http.createServer(async (req,res) => {
     if (evaluating || writing) return json(res,409,{error:'Dry-run already in progress'});
     evaluating = true;
     try {
-      let seller;
-      let sellerError;
-      try { seller = await readSellerPrice(); }
-      catch (error) {
-        sellerError = /^seller_(?:not_configured|http_\d{3}|price_unconfirmed)$/.test(error.message)
-          ? error.message : 'seller_unreachable';
-      }
-      const decision = assess(latestMeasurement(),seller,sellerError,Date.now(),policy,writeState().confirmed);
-      fs.appendFileSync(log,JSON.stringify(decision)+'\n',{encoding:'utf8'});
-      decisions.push(decision);
-      return json(res,200,decision);
+      return json(res,200,await recordDecision('manual'));
     } catch {
       return json(res,500,{error:'Could not record dry-run'});
     } finally {
       evaluating = false;
+      void drainMeasurements();
     }
   }
   if (req.method !== 'POST' || req.url !== '/measurements') return json(res,404,{error:'Not found'});
@@ -172,8 +195,11 @@ const server = http.createServer(async (req,res) => {
       const row = {sku,grayRub,greenRub,readAt};
       fs.appendFileSync(store,JSON.stringify(row)+'\n',{encoding:'utf8'});
       rows.push(row);
+      if (autoDryRun && latestMeasurement() === row) pendingMeasurement = true;
     }
-    return json(res,200,{saved:true});
+    json(res,200,{saved:true});
+    void drainMeasurements();
+    return;
   } catch {
     return json(res,400,{error:'Could not save measurement'});
   }
