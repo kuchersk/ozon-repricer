@@ -31,12 +31,16 @@ async function readSellerPrice(apiKey = process.env.OZON_OBSERVER_READ_KEY) {
   return {priceRub:rub(price.price),limitRub:rub(price.min_price)};
 }
 
+function measurementIsFresh(readAt, now = Date.now()) {
+  const age = now - Date.parse(readAt);
+  return age >= -60000 && age < 10800000;
+}
+
 function assess(card, seller, sellerError, now = Date.now(), policy = defaultPolicy, writes = []) {
-  const age = now - Date.parse(card?.readAt);
   let reason;
   let proposal = null;
   if (!card) reason = 'no_measurement';
-  else if (!Number.isFinite(age) || age < 0 || age >= 10800000) reason = 'measurement_stale';
+  else if (!measurementIsFresh(card.readAt, now)) reason = 'measurement_stale';
   else if (card.greenRub == null) reason = 'green_unconfirmed';
   else if (card.greenRub < greenFloor) reason = 'green_below_floor';
   else if (card.grayRub === target) reason = 'at_target';
@@ -66,4 +70,4 @@ function assess(card, seller, sellerError, now = Date.now(), policy = defaultPol
   };
 }
 
-module.exports = {readSellerPrice, assess, defaultPolicy, validPolicy};
+module.exports = {readSellerPrice, assess, defaultPolicy, validPolicy, measurementIsFresh};
