@@ -13,7 +13,13 @@ const policyFile = path.join(data, 'price-policy.json');
 const legacyAudit = path.join(data, 'trial-write.local.jsonl');
 let policy = fs.existsSync(policyFile) ? JSON.parse(fs.readFileSync(policyFile,'utf8')) : defaultPolicy;
 const writeAudit = path.join(data, 'price-writes.jsonl');
-const trialWriteEnabled = !hosted || process.env.OZON_ENABLE_TRIAL_WRITE === '1';
+const pilotLock = path.join(data, 'm3-auto-pilot.jsonl');
+const pilotEnabled = hosted && process.env.OZON_ENABLE_M3_AUTO_PILOT === '1';
+const pilotTransition = /^(\d{1,7}):(\d{1,7})$/.exec(process.env.OZON_M3_PILOT_TRANSITION || '');
+const pilotKey = pilotEnabled && pilotTransition && Number(pilotTransition[1]) > 0 &&
+  Number(pilotTransition[2]) > 0 && pilotTransition[1] !== pilotTransition[2]
+  ? process.env.OZON_OBSERVER_WRITE_KEY : null;
+const trialWriteEnabled = !hosted || (!pilotEnabled && process.env.OZON_ENABLE_TRIAL_WRITE === '1');
 const writeKey = trialWriteEnabled ? process.env.OZON_OBSERVER_WRITE_KEY : null;
 let evaluating = false;
 let writing = false;
@@ -40,7 +46,9 @@ async function drainMeasurements() {
   pendingMeasurement = false;
   evaluating = true;
   try {
-    if (decisions.at(-1)?.readAt !== latestMeasurement()?.readAt) await recordDecision('automatic');
+    if (decisions.at(-1)?.readAt === latestMeasurement()?.readAt) return;
+    const decision = await recordDecision('automatic');
+    if (pilotKey && decision.proposal) await runAutomaticPilot(decision);
   } catch {
     console.error('Could not save automatic dry-run decision.');
   } finally {
@@ -58,13 +66,55 @@ function writeState() {
   const journal = readJournal(writeAudit);
   const confirmed = journal.filter(entry => entry.state === 'confirmed');
   const last = journal.at(-1);
+  const pilotReserved = fs.existsSync(pilotLock);
+  const pilotStarted = journal.some(entry => entry.state === 'sending' && entry.mode === 'automatic_pilot');
   return {
     confirmed: [...(trial ? [trial] : []), ...confirmed],
-    blocked: Boolean((sent && !trial) || (last && last.state !== 'confirmed')),
+    blocked: Boolean((sent && !trial) || (last && last.state !== 'confirmed') || (pilotReserved && !pilotStarted)),
     used: journal.some(entry => entry.state === 'sending'),
+    pilotUsed: pilotReserved || pilotStarted,
     last,
   };
 }
+function auditWrite(mode, entry) {
+  fs.appendFileSync(writeAudit,JSON.stringify({...entry,mode,at:new Date().toISOString()})+'\n','utf8');
+}
+
+async function runAutomaticPilot(decision) {
+  const state = writeState();
+  if (state.blocked || state.pilotUsed || !state.confirmed.length) return;
+  const from = Number(pilotTransition[1]);
+  const to = Number(pilotTransition[2]);
+  if (decision.sellerPriceRub !== from || decision.promotionLimitRub !== from ||
+      decision.proposal.priceRub !== to || decision.proposal.promotionLimitRub !== to) return;
+
+  let seller;
+  try { seller = await readSellerPrice(pilotKey); }
+  catch {
+    console.error('Could not confirm the M3 starting price with the write key.');
+    return;
+  }
+  const now = Date.now();
+  const card = latestMeasurement();
+  const age = now - Date.parse(card?.readAt);
+  const fresh = assess(card,seller,null,now,policy,state.confirmed);
+  const samePolicy = Object.keys(defaultPolicy).every(key => decision.policy?.[key] === policy[key]);
+  if (fresh.readAt !== decision.readAt || !(age >= 0 && age <= 600000) || !samePolicy ||
+      seller.priceRub !== from || seller.limitRub !== from ||
+      fresh.proposal?.priceRub !== to || fresh.proposal?.promotionLimitRub !== to) return;
+
+  if (writeState().blocked || writeState().pilotUsed) return;
+  try {
+    fs.writeFileSync(pilotLock,JSON.stringify({from,to,at:new Date(now).toISOString()}),{encoding:'utf8',flag:'wx'});
+  } catch (error) {
+    if (error.code === 'EEXIST') return;
+    throw error;
+  }
+  const audit = entry => auditWrite('automatic_pilot',entry);
+  audit({state:'sending',sku,from,beforeLimit:from,to:fresh.proposal,readAt:fresh.readAt,checkedAt:decision.checkedAt});
+  await writePriceOnce(fresh.proposal,pilotKey,audit);
+}
+
 function latestMeasurement() {
   return rows.reduce((best, row) => !best || Date.parse(row.readAt) > Date.parse(best.readAt) ? row : best, null);
 }
@@ -98,7 +148,7 @@ const server = http.createServer(async (req,res) => {
   if (req.method === 'GET' && req.url === '/write-status') {
     try {
       const state = writeState();
-      return json(res,200,{configured:Boolean(writeKey),busy:writing,blocked:state.blocked,used:state.used,last:state.last?.state ?? null});
+      return json(res,200,{configured:Boolean(writeKey),busy:writing || Boolean(pilotKey && evaluating),blocked:state.blocked,used:state.used,last:state.last?.state ?? null,pilotConfigured:Boolean(autoDryRun && pilotKey),pilotUsed:state.pilotUsed,lastMode:state.last?.mode ?? null});
     } catch { return json(res,500,{error:'Не удалось прочитать журнал записи.'}); }
   }
   if (req.method === 'POST' && req.url === '/apply-price') {
@@ -134,7 +184,7 @@ const server = http.createServer(async (req,res) => {
           fresh.proposal?.promotionLimitRub !== selected.proposal.promotionLimitRub) {
         return json(res,409,{error:'Условия изменились. Отправьте свежий замер и запустите проверку ещё раз.'});
       }
-      const audit = entry => fs.appendFileSync(writeAudit,JSON.stringify({...entry,at:new Date().toISOString()})+'\n','utf8');
+      const audit = entry => auditWrite('manual_trial',entry);
       audit({state:'sending',sku,from:seller.priceRub,beforeLimit:seller.limitRub,to:fresh.proposal,readAt:fresh.readAt,checkedAt:selected.checkedAt});
       const confirmed = await writePriceOnce(fresh.proposal,writeKey,audit);
       return json(res,confirmed ? 200 : 502,confirmed ? {confirmed,priceRub:fresh.proposal.priceRub} : {error:'Оба значения не подтверждены. Сверьте цены в Ozon Seller.'});

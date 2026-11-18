@@ -124,6 +124,8 @@ async function refreshWriteStatus() {
   const status = await res.json();
   applyButton.hidden = !status.configured || status.busy || status.used || status.blocked || currentDecision?.source === 'automatic' || !currentDecision?.proposal;
   if (status.blocked && !status.busy) set('write-status','Запись отправлялась, но оба поля не подтверждены. Проверьте Ozon Seller.');
+  else if (status.pilotUsed && status.last === 'confirmed') set('write-status','Автопилот подтвердил одну запись. Отправьте свежий замер витрины.');
+  else if (status.pilotConfigured && !status.pilotUsed) set('write-status','Автопилот ожидает новый замер для согласованного изменения.');
   else if (status.last === 'confirmed') set('write-status','Пробная запись подтверждена. Отправьте свежий замер витрины.');
 }
 applyButton.addEventListener('click', async () => {
