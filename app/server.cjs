@@ -13,7 +13,8 @@ const policyFile = path.join(data, 'price-policy.json');
 const legacyAudit = path.join(data, 'trial-write.local.jsonl');
 let policy = fs.existsSync(policyFile) ? JSON.parse(fs.readFileSync(policyFile,'utf8')) : defaultPolicy;
 const writeAudit = path.join(data, 'price-writes.jsonl');
-const writeKey = hosted ? null : process.env.OZON_OBSERVER_WRITE_KEY;
+const trialWriteEnabled = !hosted || process.env.OZON_ENABLE_TRIAL_WRITE === '1';
+const writeKey = trialWriteEnabled ? process.env.OZON_OBSERVER_WRITE_KEY : null;
 let evaluating = false;
 let writing = false;
 function readJournal(file) {
@@ -72,7 +73,7 @@ const server = http.createServer(async (req,res) => {
   }
   if (req.method === 'POST' && req.url === '/apply-price') {
     if (req.headers.origin !== origin) return json(res,403,{error:'Откройте локальный сайт.'});
-    if (!writeKey) return json(res,403,{error:'Сайт запущен без ключа на запись.'});
+    if (!writeKey) return json(res,403,{error:'Пробная запись отключена или ключ на запись не задан.'});
     if (writing || evaluating) return json(res,409,{error:'Дождитесь окончания текущей операции.'});
     writing = true;
     try {
