@@ -1,7 +1,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { readSellerPrice, assess, defaultPolicy, validPolicy } = require('./dry-run.cjs');
+const { readSellerPrice, assess, defaultPolicy, validPolicy, measurementIsFresh } = require('./dry-run.cjs');
 const { writePriceOnce } = require('./price-write.cjs');
 const {hosted,port,origin,dashboardAllowed,ingestionAllowed} = require('./runtime.cjs');
 const data = hosted ? '/data' : __dirname;
@@ -75,10 +75,9 @@ function json(res, status, data) {
 }
 const rows = fs.existsSync(store) ? fs.readFileSync(store,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : [];
 function valid(card) {
-  const age = Date.now() - Date.parse(card?.readAt);
   const rub = n => Number.isSafeInteger(n) && n > 0;
   return card?.sku === sku && card.isMoscow === true && rub(card.grayRub) &&
-    (card.greenRub === null || rub(card.greenRub)) && age >= -60000 && age <= 10800000;
+    (card.greenRub === null || rub(card.greenRub)) && measurementIsFresh(card.readAt);
 }
 const server = http.createServer(async (req,res) => {
   if (req.method === 'GET' && req.url === '/health') return json(res,200,{ok:true});
