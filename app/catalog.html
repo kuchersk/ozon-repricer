@@ -2,46 +2,47 @@
 <html lang="ru">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Плеяда · Цены Ozon</title>
-<style>
-:root{font:15px Inter,system-ui,sans-serif;color:#172a40;background:#f3f6fa;color-scheme:light}
-*{box-sizing:border-box}body{margin:0}main{max-width:1500px;margin:auto;padding:32px 28px}
-[hidden]{display:none!important}
-header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px}h1{font-size:30px;letter-spacing:-.8px;margin:0 0 6px}h2{font-size:21px;margin:0 0 16px}p{line-height:1.5}header p{margin:0;color:#5b6b80}
-button,.button,input,select{font:inherit;border:1px solid #c9d4e1;border-radius:7px;padding:9px 12px;background:white;color:inherit}
-button,.button{cursor:pointer;display:inline-block}button:hover,.button:hover{border-color:#1d5cd7;background:#f4f8ff}button:disabled{cursor:wait;opacity:.5}
-.primary{background:#155be0;color:white;border-color:#155be0}.primary:hover{background:#124cc0;color:white}
-a{color:#1858c2}nav{display:flex;gap:18px}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:white;border:1px solid #dce4ef;border-radius:10px;padding:16px}
-#search{flex:1;min-width:220px}#status{min-height:24px;margin:12px 2px;color:#425b77}
-.grid{overflow:auto;max-height:65vh;background:white;border:1px solid #dce4ef;border-radius:10px}
-table{border-collapse:collapse;width:100%;text-align:left}th,td{padding:14px 16px;border-bottom:1px solid #e3e9f1;vertical-align:top}
-th{position:sticky;top:0;background:#eaf0f8;font-size:13px;z-index:1;white-space:nowrap}td{font-variant-numeric:tabular-nums}
-td:first-child{min-width:310px;max-width:500px}small{display:block;font-size:12px;color:#66798f;margin-top:5px}.number{white-space:nowrap}.muted{color:#708197}.tag{color:#9a4a00;font-size:12px}
-section{margin-top:24px}.empty{padding:42px;text-align:center;color:#506580}dialog{border:1px solid #ccd8e5;border-radius:14px;padding:26px;width:min(560px,95vw);box-shadow:0 18px 80px #10243b40}dialog::backdrop{background:#14243970}
-form label{display:grid;gap:6px;margin:14px 0}form .pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}.actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
-#edit-title{line-height:1.4}#confirmation{background:#edf4ff;padding:16px;border-radius:8px}#edit-status{min-height:24px}
-@media(max-width:700px){main{padding:20px 12px}header{align-items:flex-start;flex-direction:column}form .pair{grid-template-columns:1fr}}
-</style>
+<title>Шумоff · Каталог товаров</title>
+<link rel="stylesheet" href="/brand.css">
+<body>
+<aside class="sidebar" aria-label="Навигация">
+ <a class="brand" href="/" aria-label="Шумофф — каталог товаров"><img src="/shumoff-logo.png" alt="Шумоff" width="150" height="70"></a>
+ <div class="workspace-label">Рабочее пространство</div>
+ <nav class="side-nav">
+  <a href="/" class="active" aria-current="page" title="Каталог товаров"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Каталог товаров</span></a>
+  <a href="/m3"  title="Мониторинг М3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17V4h18v13H3Zm5 4h8m-4-4v4M6 11h3l2-4 3 7 2-3h2"/></svg><span>Мониторинг М3</span></a>
+  <a href="/#changes" title="Журнал изменений"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8a8.5 8.5 0 1 1-1 7M4 3v5h5m3-1v6l4 2"/></svg><span>Журнал изменений</span></a>
+ </nav>
+ <div class="sidebar-footer"><span class="brand-rule"></span><strong>ПЛЕЯДА</strong><small>Каталог и управление<br>ценами на Ozon</small></div>
+</aside>
+<div class="workspace"><div class="topbar"><span class="topbar-title"><b>ПЛЕЯДА</b>Управление ценами Ozon</span><span class="workspace-badge">Кабинет продавца</span></div>
 <main>
-<header><div><h1>Цены Ozon</h1><p>Плеяда · каталог и предельные цены продавца</p></div><nav><a href="/m3">Мониторинг М3</a></nav></header>
+<header class="page-heading"><div><div class="eyebrow">Каталог и цены</div><h1>Все товары. Под контролем.</h1><p class="page-description">Предельные цены, ориентиры прайса и изменения по каждому SKU.</p></div><div class="heading-mark" aria-hidden="true"></div></header>
+<section class="overview" aria-label="Сводка каталога">
+ <article class="metric metric-accent"><div class="metric-label">Всего товаров</div><strong id="total-products">—</strong></article>
+ <article class="metric"><div class="metric-label">В продаже</div><strong id="selling-products">—</strong></article>
+ <article class="metric"><div class="metric-label">Без ориентира прайса</div><strong id="unmapped-products">—</strong></article>
+ <article class="metric metric-warning"><div class="metric-label">Проверить запись</div><strong id="pending-products">—</strong></article>
+</section>
+<section class="catalog-panel" aria-label="Каталог товаров"><div class="panel-heading"><h2>Товары <span id="count">0 товаров</span></h2><span class="subtext">Поиск по названию, SKU и артикулу</span></div>
 <div class="toolbar">
-<input id="search" type="search" placeholder="Название, SKU или артикул продавца" aria-label="Поиск товара">
+<div class="search-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="search" type="search" placeholder="Найти товар или SKU" aria-label="Поиск товара"></div>
 <select id="filter" aria-label="Фильтр"><option value="all">Все товары</option><option value="selling">Продаётся</option><option value="unmapped">Без ориентира прайса</option><option value="blocked">Проверить запись</option></select>
-<label class="button">Импорт каталога JSON<input id="import" type="file" accept=".json,application/json" hidden></label>
-<button id="refresh" class="primary">Обновить цены из Ozon</button>
-<span id="count">0 товаров</span>
+<label class="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3m-5 5 5-5 5 5M3 14v6h18v-6"/></svg>Импорт каталога<input id="import" type="file" accept=".json,application/json" hidden></label>
+<button id="refresh" class="primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7a9 9 0 0 0-15-2L2 8m0-6v6h6m-4 9a9 9 0 0 0 15 2l3-3m0 6v-6h-6"/></svg>Обновить цены из Ozon</button>
 </div>
 <p id="status" role="status"></p>
-<div class="grid"><table><thead><tr><th>Товар</th><th>Предельная цена</th><th>Ориентир серой цены</th><th>Минимальная предельная</th><th>Действие</th></tr></thead><tbody id="products"></tbody></table><div id="empty" class="empty" hidden>Загрузите файл каталога. После импорта обновите цены из Ozon.</div></div>
-<section><h2>Последние изменения</h2><div class="grid" style="max-height:260px"><table><thead><tr><th>Время, МСК</th><th>SKU</th><th>Предельная цена</th><th>Результат</th></tr></thead><tbody id="operations"></tbody></table></div></section>
-</main>
+<div class="grid"><table><thead><tr><th>Товар</th><th>Предельная цена</th><th>Ориентир<br>серой цены</th><th>Минимальная<br>предельная</th><th>Действие</th></tr></thead><tbody id="products"></tbody></table><div id="empty" class="empty" hidden>Загрузите файл каталога. После импорта обновите цены из Ozon.</div></div>
+<p class="table-footnote">Изменение предельной цены применяется после вашего подтверждения. Цена на витрине проверяется отдельным замером.</p></section>
+<section class="history-panel journal" id="changes"><div class="panel-heading"><h2>Последние изменения</h2><span class="subtext">История подтверждений Ozon</span></div><div class="grid" style="max-height:260px"><table><thead><tr><th>Время, МСК</th><th>SKU</th><th>Предельная цена</th><th>Результат</th></tr></thead><tbody id="operations"></tbody></table></div><p class="journal-empty" id="journal-empty" hidden>Изменений пока нет. После первой записи здесь появится её результат.</p></section>
+<footer class="page-footer"><span><strong>Шумоff</strong> · Плеяда</span><span>Управление ценами вашего каталога</span></footer></main></div>
 <dialog id="editor">
-<form id="edit-form">
+<form id="edit-form"><div class="dialog-eyebrow">Управление ценой</div>
 <h2 id="edit-title"></h2><p id="edit-current"></p>
 <div class="pair"><label>Ориентир серой цены, ₽<input id="target" type="number" min=".01" step=".01"></label><label>Минимальная предельная, ₽<input id="floor" type="number" min=".01" step=".01"></label></div>
 <button id="save-settings" type="button">Сохранить ориентир и минимум</button>
-<label>Новая предельная цена, ₽<input id="price" type="number" min=".01" step=".01"></label>
-<p>После подтверждения указанная сумма будет установлена в кабинете продавца. Серую цену на витрине проверяем отдельным замером.</p>
+<label class="price-label">Новая предельная цена, ₽<input id="price" type="number" min=".01" step=".01"></label>
+<p class="price-note">После подтверждения указанная сумма будет установлена в кабинете продавца. Серую цену на витрине проверяем отдельным замером.</p>
 <p id="confirmation" hidden></p><p id="edit-status" role="status"></p>
 <div class="actions"><button id="close" type="button">Закрыть</button><button id="prepare" class="primary" type="submit">Проверить изменение</button><button id="apply" class="primary" type="button" hidden>Подтвердить запись</button></div>
 </form>
@@ -65,6 +66,11 @@ function cell(row,text,cls){
  const td=row.insertCell();td.textContent=text;if(cls)td.className=cls;return td;
 }
 function render(){
+ el('total-products').textContent=catalog.products.length;
+ el('selling-products').textContent=catalog.products.filter(p=>['Продается','Продаётся'].includes(p.status)).length;
+ el('unmapped-products').textContent=catalog.products.filter(p=>p.grayTargetRub==null).length;
+ el('pending-products').textContent=catalog.products.filter(p=>p.blocked).length;
+ el('journal-empty').hidden=catalog.operations.length>0;
  const q=el('search').value.trim().toLocaleLowerCase('ru');
  const filter=el('filter').value;
  const rows=catalog.products.filter(p=>(p.name+' '+p.sku+' '+p.sellerOfferId).toLocaleLowerCase('ru').includes(q) &&
@@ -75,17 +81,17 @@ function render(){
   const tr=document.createElement('tr');
   const title=cell(tr,p.name);const sub=document.createElement('small');
   sub.textContent='SKU '+p.sku+' · '+p.sellerOfferId;title.append(sub);
-  const status=document.createElement('small');status.textContent=p.status;title.append(status);
+  const status=document.createElement('small');status.textContent=p.status;status.className='product-status';title.append(status);
   const price=cell(tr,money(p.current?.priceRub),'number');
   const checked=document.createElement('small');checked.textContent=p.current?.error||('Проверено '+time(p.current?.at));price.append(checked);
   cell(tr,money(p.grayTargetRub),'number');cell(tr,money(p.floorRub),'number');
-  const action=cell(tr,'');const button=document.createElement('button');button.textContent='Редактировать';button.onclick=()=>openEditor(p);action.append(button);
+  const action=cell(tr,'');const button=document.createElement('button');button.textContent='Редактировать';button.className='row-action';button.onclick=()=>openEditor(p);action.append(button);
   if(p.blocked){const check=document.createElement('button');check.textContent='Проверить результат';check.onclick=async()=>{try{const r=await api('/catalog/api/reconcile',{sku:p.sku});el('status').textContent=names[r.status]||r.status;await load();}catch(e){el('status').textContent=e.message}};action.append(check)}
   return tr;
  }));
  el('operations').replaceChildren(...catalog.operations.map(op=>{
   const tr=document.createElement('tr');cell(tr,time(op.updatedAt||op.at));cell(tr,op.sku);
-  cell(tr,money(op.before?.priceRub)+' → '+money(op.priceRub),'number');cell(tr,names[op.status]||op.status);return tr;
+  cell(tr,money(op.before?.priceRub)+' → '+money(op.priceRub),'number');cell(tr,names[op.status]||op.status,'operation-'+op.status);return tr;
  }));
 }
 async function load(){catalog=await api('/catalog/api');render()}
@@ -145,4 +151,5 @@ el('import').onchange=async()=>{
 };
 load().catch(e=>el('status').textContent=e.message);
 </script>
+</body>
 </html>
