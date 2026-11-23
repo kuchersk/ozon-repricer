@@ -2,4 +2,4 @@
 !Dockerfile
 !app/
 !app/*.cjs
-!app/index.html
+!app/*.html

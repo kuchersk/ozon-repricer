@@ -1,6 +1,6 @@
 FROM node:24-alpine
 WORKDIR /app
-COPY --chown=node:node app/*.cjs app/index.html ./
+COPY --chown=node:node app/*.cjs app/*.html ./
 RUN mkdir /data && chown node:node /data
 ENV NODE_ENV=production OZON_OBSERVER_MODE=hosted
 USER node

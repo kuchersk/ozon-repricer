@@ -7,7 +7,7 @@ function validPolicy(policy) {
     && integer(policy.cooldownMinutes,1,1440) && integer(policy.maxDailyChanges,1,24);
 }
 
-async function readSellerPrice(apiKey = process.env.OZON_OBSERVER_READ_KEY) {
+async function readSellerPrice(apiKey = process.env.OZON_OBSERVER_READ_KEY, product = {sellerProductId:productId,sellerOfferId}) {
   const clientId = process.env.OZON_OBSERVER_CLIENT_ID;
 
   if (!clientId || !apiKey) throw new Error('seller_not_configured');
@@ -15,13 +15,14 @@ async function readSellerPrice(apiKey = process.env.OZON_OBSERVER_READ_KEY) {
     method: 'POST',
     redirect: 'error',
     headers: {'Client-Id':clientId,'Api-Key':apiKey,'Content-Type':'application/json'},
-    body: JSON.stringify({filter:{product_id:[productId]},limit:10}),
+    body: JSON.stringify({filter:{product_id:[product.sellerProductId]},limit:10}),
     signal: AbortSignal.timeout(10000),
   });
   if (!response.ok) throw new Error('seller_http_' + response.status);
   const {items} = await response.json();
-  const item = items?.find(row => Number(row.product_id) === productId);
-  if (item?.offer_id !== sellerOfferId) throw new Error('seller_price_unconfirmed');
+  const matches = Array.isArray(items) ? items.filter(row => Number(row.product_id) === product.sellerProductId) : [];
+  const item = matches[0];
+  if (matches.length !== 1 || item?.offer_id !== product.sellerOfferId) throw new Error('seller_price_unconfirmed');
   const price = item.price;
   const rub = value => {
     const number = Number(value);

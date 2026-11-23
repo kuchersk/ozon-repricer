@@ -6,6 +6,9 @@ const { writePriceOnce } = require('./price-write.cjs');
 const {hosted,port,origin,dashboardAllowed,ingestionAllowed} = require('./runtime.cjs');
 const data = hosted ? '/data' : __dirname;
 if (hosted) fs.accessSync(data,fs.constants.W_OK);
+const {createCatalog} = require('./catalog.cjs');
+const catalog = createCatalog(data, productSku => productSku === '275647765' &&
+  (Boolean(pilotKey) || writeState().blocked));
 const store = path.join(data, 'measurements.jsonl');
 const log = path.join(data, 'decisions.jsonl');
 const decisions = fs.existsSync(log) ? fs.readFileSync(log,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : [];
@@ -69,8 +72,8 @@ function writeState() {
   const pilotReserved = fs.existsSync(pilotLock);
   const pilotStarted = journal.some(entry => entry.state === 'sending' && entry.mode === 'automatic_pilot');
   return {
-    confirmed: [...(trial ? [trial] : []), ...confirmed],
-    blocked: Boolean((sent && !trial) || (last && last.state !== 'confirmed') || (pilotReserved && !pilotStarted)),
+    confirmed: [...(trial ? [trial] : []), ...confirmed, ...catalog.auditFor('275647765').confirmed].sort((a,b)=>Date.parse(a.at)-Date.parse(b.at)),
+    blocked: Boolean(catalog.auditFor('275647765').blocked || (sent && !trial) || (last && last.state !== 'confirmed') || (pilotReserved && !pilotStarted)),
     used: journal.some(entry => entry.state === 'sending'),
     pilotUsed: pilotReserved || pilotStarted,
     last,
@@ -138,7 +141,23 @@ const server = http.createServer(async (req,res) => {
     res.setHeader('WWW-Authenticate','Basic realm="Ozon Observer", charset="UTF-8"');
     return json(res,401,{error:'Dashboard authentication required'});
   }
-  if (req.method === 'GET' && req.url === '/') {
+  if (req.url.startsWith('/catalog/api')) {
+    if (req.method !== 'GET') {
+      if (req.headers.origin !== origin) return json(res,403,{error:'Откройте панель репрайсера.'});
+      if (writing || evaluating) return json(res,409,{error:'Дождитесь завершения текущей операции.'});
+      writing = true;
+    }
+    try { await catalog.handle(req,res,req.url); }
+    finally {
+      if (req.method !== 'GET') { writing = false; void drainMeasurements(); }
+    }
+    return;
+  }
+  if (req.method === 'GET' && (req.url === '/' || req.url === '/catalog')) {
+    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});
+    return res.end(fs.readFileSync(path.join(__dirname,'catalog.html')));
+  }
+  if (req.method === 'GET' && req.url === '/m3') {
     res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});
     return res.end(fs.readFileSync(path.join(__dirname,'index.html')));
   }

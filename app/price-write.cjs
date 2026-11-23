@@ -1,7 +1,8 @@
 const { readSellerPrice } = require('./dry-run.cjs');
-const {sellerProductId:productId} = require('./product.cjs');
+const defaultProduct = require('./product.cjs');
 
-async function writePriceOnce(proposal, key, audit) {
+async function writePriceOnce(proposal, key, audit, product = defaultProduct) {
+  const productId = product.sellerProductId;
   const body = { prices: [{
     product_id: productId, currency_code: 'RUB',
     price: String(proposal.priceRub), min_price: String(proposal.promotionLimitRub),
@@ -26,7 +27,7 @@ async function writePriceOnce(proposal, key, audit) {
   for (let i = 0; i < 4; i++) {
     if (i) await new Promise(resolve => setTimeout(resolve,5000));
     let current;
-    try { current = await readSellerPrice(key); } catch { continue; }
+    try { current = await readSellerPrice(key,product); } catch { continue; }
     audit({state:'readback',price:current.priceRub,min_price:current.limitRub});
     if (current.priceRub === proposal.priceRub && current.limitRub === proposal.promotionLimitRub) {
       audit({state:'confirmed',price:current.priceRub,min_price:current.limitRub});
