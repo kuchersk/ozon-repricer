@@ -141,6 +141,12 @@ const server = http.createServer(async (req,res) => {
     res.setHeader('WWW-Authenticate','Basic realm="Ozon Observer", charset="UTF-8"');
     return json(res,401,{error:'Dashboard authentication required'});
   }
+  const brandAssets = {'/brand.css':['brand.css','text/css; charset=utf-8'],'/shumoff-logo.png':['shumoff-logo.png','image/png']};
+  if (req.method === 'GET' && Object.hasOwn(brandAssets,req.url)) {
+    const [file,type] = brandAssets[req.url];
+    res.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store'});
+    return res.end(fs.readFileSync(path.join(__dirname,file)));
+  }
   if (req.url.startsWith('/catalog/api')) {
     if (req.method !== 'GET') {
       if (req.headers.origin !== origin) return json(res,403,{error:'Откройте панель репрайсера.'});

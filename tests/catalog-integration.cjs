@@ -1,7 +1,7 @@
 const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict'),{spawn}=require('node:child_process');
 const dir=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'ozon-catalog-test-'));
 const app=path.resolve(__dirname,'../app');
-for(const f of fs.readdirSync(app))if(/\.(cjs|html)$/.test(f))fs.copyFileSync(path.join(app,f),path.join(dir,f));
+for(const f of fs.readdirSync(app))if(/\.(cjs|html|css|png)$/.test(f))fs.copyFileSync(path.join(app,f),path.join(dir,f));
 fs.mkdirSync(dir+'/data');
 fs.writeFileSync(dir+'/server.cjs',fs.readFileSync(dir+'/server.cjs','utf8').replace("hosted ? '/data' : __dirname","hosted ? path.join(__dirname,'data') : __dirname"));
 fs.writeFileSync(dir+'/runtime.cjs',fs.readFileSync(dir+'/runtime.cjs','utf8').replace('const port = 8765;','const port = 18766;'));
@@ -31,11 +31,18 @@ async function start(){child=spawn(process.execPath,['--require','./mock.cjs','s
 async function stop(){await new Promise(r=>{child.once('exit',r);child.kill()})}
 const auth='Basic '+Buffer.from('observer:'+env.OZON_DASHBOARD_PASSWORD).toString('base64');
 function call(route,body,authorized=true){return new Promise((resolve,reject)=>{
- const req=http.request('http://127.0.0.1:18766'+route,{method:body===undefined?'GET':'POST',headers:{host:'catalog.test','x-forwarded-proto':'https',...(authorized?{authorization:auth}:{}),...(body===undefined?{}:{origin:'https://catalog.test','content-type':'application/json'})}},res=>{let data='';res.on('data',c=>data+=c);res.on('end',()=>resolve({status:res.statusCode,data:JSON.parse(data)}))});req.on('error',reject);req.end(body===undefined?undefined:JSON.stringify(body))
+ const req=http.request('http://127.0.0.1:18766'+route,{method:body===undefined?'GET':'POST',headers:{host:'catalog.test','x-forwarded-proto':'https',...(authorized?{authorization:auth}:{}),...(body===undefined?{}:{origin:'https://catalog.test','content-type':'application/json'})}},res=>{let data='';res.on('data',c=>data+=c);res.on('end',()=>resolve({status:res.statusCode,type:res.headers['content-type'],data:res.headers['content-type']?.includes('application/json')?JSON.parse(data):data}))});req.on('error',reject);req.end(body===undefined?undefined:JSON.stringify(body))
 })}
 (async()=>{
  await start();
  assert.equal((await call('/catalog/api',undefined,false)).status,401);
+ const home=await call('/');
+ assert.equal(home.status,200);assert.ok(home.data.includes('/brand.css'));
+ assert.ok(!home.data.includes('демоданные'));
+ assert.equal((await call('/m3')).status,200);
+ assert.equal((await call('/brand.css')).type,'text/css; charset=utf-8');
+ assert.equal((await call('/shumoff-logo.png')).type,'image/png');
+ assert.equal((await call('/brand.css',undefined,false)).status,401);
  const products=Array.from({length:205},(_,i)=>({sku:String(700000+i),sellerProductId:1000+i,sellerOfferId:'offer-'+(1000+i),name:'Товар '+i,grayTargetRub:i%2?null:800,floorRub:null,status:'Продается'}));
  assert.equal((await call('/catalog/api/import',{products})).data.count,205);
  assert.equal((await call('/catalog/api/import',{products:[{...products[0],sku:'0'}]})).status,400);

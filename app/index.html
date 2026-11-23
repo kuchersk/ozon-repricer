@@ -2,17 +2,22 @@
 <html lang="ru">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Ozon Repricer · Наблюдение</title>
-<style>
-:root{color-scheme:light;font:16px system-ui;color:#14253a;background:#f4f7fb}
-main{max-width:880px;margin:8vh auto;padding:0 20px}header{border-top:5px solid #145bdf;padding-top:24px}
-h1{margin:0;font-size:clamp(28px,6vw,44px)}p{color:#425470}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:28px 0}
-article,.history{background:white;border:1px solid #dce4ef;border-radius:12px;padding:18px}
-article strong{display:block;font-size:27px;margin-top:7px}table{border-collapse:collapse;width:100%;text-align:left}th,td{padding:10px 6px;border-bottom:1px solid #dce4ef}h2{margin-top:0}form{display:flex;flex-wrap:wrap;gap:12px;align-items:end}label{display:grid;gap:4px}input{max-width:9rem;padding:5px}
-</style>
-<main><p><a href="/">← Все товары</a></p>
-<header><h1>Шумофф М3</h1><p>16 листов · SKU 275647765 · Москва</p><p id="status" role="status">Загружаю замеры…</p></header>
+<title>Шумоff · Мониторинг М3</title>
+<link rel="stylesheet" href="/brand.css">
+<body>
+<aside class="sidebar" aria-label="Навигация">
+ <a class="brand" href="/" aria-label="Шумофф — каталог товаров"><img src="/shumoff-logo.png" alt="Шумоff" width="150" height="70"></a>
+ <div class="workspace-label">Рабочее пространство</div>
+ <nav class="side-nav">
+  <a href="/"  title="Каталог товаров"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Каталог товаров</span></a>
+  <a href="/m3" class="active" aria-current="page" title="Мониторинг М3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17V4h18v13H3Zm5 4h8m-4-4v4M6 11h3l2-4 3 7 2-3h2"/></svg><span>Мониторинг М3</span></a>
+  <a href="/#changes" title="Журнал изменений"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8a8.5 8.5 0 1 1-1 7M4 3v5h5m3-1v6l4 2"/></svg><span>Журнал изменений</span></a>
+ </nav>
+ <div class="sidebar-footer"><span class="brand-rule"></span><strong>ПЛЕЯДА</strong><small>Каталог и управление<br>ценами на Ozon</small></div>
+</aside>
+<div class="workspace"><div class="topbar"><span class="topbar-title"><b>ПЛЕЯДА</b>Управление ценами Ozon</span><span class="workspace-badge">Кабинет продавца</span></div>
+<main class="monitor-page">
+<header class="page-heading"><div><div class="eyebrow">Мониторинг витрины</div><h1>Шумофф М3</h1><p class="page-description">16 листов · SKU 275647765 · Москва</p><p id="status" role="status">Загружаю замеры…</p></div><div class="heading-mark" aria-hidden="true"></div></header>
 <section class="cards" aria-label="Цены">
 <article>Серая цена<strong id="gray">—</strong></article>
 <article>Ориентир<strong id="target">—</strong></article>
@@ -35,8 +40,8 @@ article strong{display:block;font-size:27px;margin-top:7px}table{border-collapse
 <p id="write-status" role="status"></p>
 <div style="overflow:auto"><table><thead><tr><th>Время, МСК</th><th>Серая</th><th>Предельная</th><th>Решение</th></tr></thead><tbody id="decisions"></tbody></table></div>
 </section>
-<section class="history"><h2>История замеров</h2><table><thead><tr><th>Время, МСК</th><th>Серая</th><th>Зелёная</th></tr></thead><tbody id="rows"></tbody></table></section>
-</main>
+<section class="history"><h2>История замеров</h2><div class="table-scroll"><table><thead><tr><th>Время, МСК</th><th>Серая</th><th>Зелёная</th></tr></thead><tbody id="rows"></tbody></table></div></section>
+<footer class="page-footer"><span><strong>Шумоff</strong> · Плеяда</span><span>Цены витрины и история замеров</span></footer></main></div>
 <script>
 const format = n => n === null || n === undefined ? '—' : new Intl.NumberFormat('ru').format(n)+' ₽';
 const clock = t => new Date(t).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'});
@@ -161,4 +166,5 @@ refresh();
 setInterval(refresh,3000);
 setInterval(() => { if (!dryButton.disabled && !applyButton.disabled) loadDecisions().catch(() => {}); },5000);
 </script>
+</body>
 </html>

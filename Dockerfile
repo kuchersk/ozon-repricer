@@ -1,6 +1,6 @@
 FROM node:24-alpine
 WORKDIR /app
-COPY --chown=node:node app/*.cjs app/*.html ./
+COPY --chown=node:node app/*.cjs app/*.html app/brand.css app/shumoff-logo.png ./
 RUN mkdir /data && chown node:node /data
 ENV NODE_ENV=production OZON_OBSERVER_MODE=hosted
 USER node

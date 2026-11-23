@@ -3,3 +3,5 @@
 !app/
 !app/*.cjs
 !app/*.html
+!app/brand.css
+!app/shumoff-logo.png
