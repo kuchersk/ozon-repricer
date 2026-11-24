@@ -9,6 +9,8 @@ if (hosted) fs.accessSync(data,fs.constants.W_OK);
 const {createCatalog} = require('./catalog.cjs');
 const catalog = createCatalog(data, productSku => productSku === '275647765' &&
   (Boolean(pilotKey) || writeState().blocked));
+const {createPilot}=require('./pilot.cjs');
+const pilot=createPilot(data,catalog.analysisContext,catalog.configureAnalysis);
 const store = path.join(data, 'measurements.jsonl');
 const log = path.join(data, 'decisions.jsonl');
 const decisions = fs.existsSync(log) ? fs.readFileSync(log,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : [];
@@ -28,6 +30,7 @@ let evaluating = false;
 let writing = false;
 const autoDryRun = process.env.OZON_AUTO_DRY_RUN === '1';
 let pendingMeasurement = false;
+const pendingPilotMeasurements=new Set(pilot.pending());
 
 async function recordDecision(source) {
   let seller;
@@ -45,18 +48,24 @@ async function recordDecision(source) {
 }
 
 async function drainMeasurements() {
-  if (!pendingMeasurement || evaluating || writing) return;
-  pendingMeasurement = false;
+  if ((!pendingMeasurement&&!pendingPilotMeasurements.size) || evaluating || writing) return;
   evaluating = true;
   try {
-    if (decisions.at(-1)?.readAt === latestMeasurement()?.readAt) return;
-    const decision = await recordDecision('automatic');
-    if (pilotKey && decision.proposal) await runAutomaticPilot(decision);
+    if(pendingMeasurement){
+      pendingMeasurement=false;
+      if (decisions.at(-1)?.readAt === latestMeasurement()?.readAt) return;
+      const decision = await recordDecision('automatic');
+      if (pilotKey && decision.proposal) await runAutomaticPilot(decision);
+    }else{
+      const sku=pendingPilotMeasurements.values().next().value;
+      pendingPilotMeasurements.delete(sku);
+      await pilot.evaluate(sku);
+    }
   } catch {
     console.error('Could not save automatic dry-run decision.');
   } finally {
     evaluating = false;
-    if (pendingMeasurement) void drainMeasurements();
+    if (pendingMeasurement||pendingPilotMeasurements.size) void drainMeasurements();
   }
 }
 function readJournal(file) {
@@ -136,7 +145,7 @@ const server = http.createServer(async (req,res) => {
   if (req.method === 'GET' && req.url === '/health') return json(res,200,{ok:true});
   if (req.headers.host !== new URL(origin).host ||
       (hosted && req.headers['x-forwarded-proto'] !== 'https')) return json(res,403,{error:'Invalid origin'});
-  const intake = req.method === 'POST' && req.url === '/measurements';
+  const intake = (req.method === 'POST' && req.url === '/measurements') || (req.method === 'GET' && req.url === '/pilot-products');
   if (!intake && !dashboardAllowed(req)) {
     res.setHeader('WWW-Authenticate','Basic realm="Ozon Observer", charset="UTF-8"');
     return json(res,401,{error:'Dashboard authentication required'});
@@ -146,6 +155,25 @@ const server = http.createServer(async (req,res) => {
     const [file,type] = brandAssets[req.url];
     res.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store'});
     return res.end(fs.readFileSync(path.join(__dirname,file)));
+  }
+  if(req.method==='GET'&&req.url==='/pilot-products'){
+    if(!ingestionAllowed(req))return json(res,403,{error:'Extension request required'});
+    try{return json(res,200,{mode:'dry_run',products:pilot.targets()});}
+    catch{return json(res,422,{error:'Импортируйте каталог с тремя товарами пилота и проверьте их идентификаторы.'});}
+  }
+  if(req.url.startsWith('/pilot/api')){
+    if(req.method!=='GET'){
+      if(req.headers.origin!==origin)return json(res,403,{error:'Откройте панель репрайсера.'});
+      if(writing||evaluating)return json(res,409,{error:'Дождитесь завершения текущей операции.'});
+      writing=true;
+    }
+    try{await pilot.handle(req,res,req.url);}
+    finally{if(req.method!=='GET'){writing=false;void drainMeasurements();}}
+    return;
+  }
+  if(req.method==='GET'&&req.url==='/pilot'){
+    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});
+    return res.end(fs.readFileSync(path.join(__dirname,'pilot.html')));
   }
   if (req.url.startsWith('/catalog/api')) {
     if (req.method !== 'GET') {
@@ -263,6 +291,14 @@ const server = http.createServer(async (req,res) => {
       if (body.length > 4096) return json(res,413,{error:'Too large'});
     }
     const card = JSON.parse(body);
+    if(card?.sku!==sku){
+      try{
+        const result=pilot.accept(card);
+        if(result.evaluate)pendingPilotMeasurements.add(card.sku);
+        json(res,200,{saved:result.saved,duplicate:result.duplicate,mode:'dry_run'});
+        void drainMeasurements();return;
+      }catch(error){return json(res,422,{error:error.message});}
+    }
     if (!valid(card)) return json(res,422,{error:'SKU, Moscow, prices or freshness not confirmed'});
     const {grayRub,greenRub,readAt} = card;
     if (!rows.some(row => row.readAt === readAt)) {
@@ -278,4 +314,4 @@ const server = http.createServer(async (req,res) => {
     return json(res,400,{error:'Could not save measurement'});
   }
 });
-server.listen(port,hosted ? '0.0.0.0' : '127.0.0.1',() => console.log('Observer listening on ' + port));
+server.listen(port,hosted ? '0.0.0.0' : '127.0.0.1',() => {console.log('Observer listening on ' + port);void drainMeasurements();});

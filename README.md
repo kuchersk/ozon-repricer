@@ -17,3 +17,4 @@
 - [Запуск локального MVP](docs/LOCAL_MVP.md)
 - [Подготовка развёртывания в Coolify](docs/COOLIFY.md)
 - [Каталог и редактирование цен всех SKU](docs/CATALOG.md)
+- [Пилот трёх товаров: обход витрины и автоматический dry-run](docs/THREE_SKU_PILOT.md)
