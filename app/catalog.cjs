@@ -96,6 +96,7 @@ function createCatalog(data, legacyBusy) {
       const product = productFor(payload.sku);
       if (url === '/catalog/api/settings') {
         const updated = validateProduct({...product,grayTargetRub:payload.grayTargetRub,floorRub:payload.floorRub});
+        if(product.pilotPolicy&&(product.grayTargetRub!==updated.grayTargetRub||product.floorRub!==updated.floorRub))product.pilotSettingsUpdatedAt=new Date().toISOString();
         Object.assign(product,updated);persist();return send(200,{saved:true});
       }
       if (url === '/catalog/api/prepare') {
@@ -161,6 +162,18 @@ function createCatalog(data, legacyBusy) {
         .map(op=>({state:'confirmed',price:op.priceRub,min_price:op.priceRub,at:op.updatedAt})),
     };
   }
-  return {handle,auditFor};
+  function analysisContext(sku) {
+    return {product:structuredClone(productFor(sku)),blocked:Boolean(pendingFor(sku)),
+      writes:auditFor(sku).confirmed.sort((a,b)=>Date.parse(a.at)-Date.parse(b.at))};
+  }
+  function configureAnalysis(profiles) {
+    for(const profile of profiles)productFor(profile.sku);
+    state.products=state.products.map(product=>{
+      const profile=profiles.find(p=>p.sku===product.sku);
+      return profile?{...product,grayTargetRub:profile.grayTargetRub,floorRub:profile.floorRub,pilotPolicy:profile.pilotPolicy,pilotSettingsUpdatedAt:new Date().toISOString()}:product;
+    });
+    persist();
+  }
+  return {handle,auditFor,analysisContext,configureAnalysis};
 }
 module.exports = {createCatalog};

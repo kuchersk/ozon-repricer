@@ -53,7 +53,7 @@ readButton.addEventListener('click', async () => {
     try {
       showHistory(await saveMeasurement(card));
       lines.push('Замер сохранён.');
-      if (card.sku === '275647765' && card.isMoscow) {
+      if ((card.sku === '275647765'||ozonPilotProducts.some(p=>p.sku===card.sku)) && card.isMoscow) {
         lines.push(await sendMeasurementToSite(card) ? 'Замер отправлен на сайт.' : 'Сайт не принял замер.');
       }
     } catch {
@@ -97,3 +97,26 @@ button.addEventListener('click', async () => {
 bindSchedule(scheduleButton, 'scheduleOzonTest');
 bindSchedule(document.querySelector('#recurring'), 'scheduleOzonRecurring');
 bindSchedule(document.querySelector('#stop'), 'stopOzonRecurring');
+
+const pilotStatus=document.querySelector('#pilot-status');
+function showPilot(state){
+  pilotStatus.textContent=state?.status||'Обход ещё не запускался.';
+  document.querySelector('#pilot-start').disabled=Boolean(state?.enabled);
+  document.querySelector('#pilot-stop').disabled=!state?.enabled;
+}
+chrome.storage.local.get('ozonPilotQueue').then(saved=>showPilot(saved.ozonPilotQueue));
+chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes.ozonPilotQueue)showPilot(changes.ozonPilotQueue.newValue);});
+document.querySelector('#pilot-start').addEventListener('click',async()=>{
+  const button=document.querySelector('#pilot-start');button.disabled=true;
+  try{
+    const allowed=await chrome.permissions.request({origins:['https://www.ozon.ru/*','https://ozon.ru/*']});
+    if(!allowed)throw Error('Для обхода нужен доступ к карточкам Ozon.');
+    const result=await chrome.runtime.sendMessage({action:'startOzonPilot'});
+    pilotStatus.textContent=result.status;
+  }catch(error){pilotStatus.textContent=error.message;}
+  finally{const saved=await chrome.storage.local.get('ozonPilotQueue');button.disabled=Boolean(saved.ozonPilotQueue?.enabled);}
+});
+document.querySelector('#pilot-stop').addEventListener('click',async()=>{
+  try{const result=await chrome.runtime.sendMessage({action:'stopOzonPilot'});pilotStatus.textContent=result.status;}
+  catch{pilotStatus.textContent='Не удалось остановить обход. Повторите.';}
+});

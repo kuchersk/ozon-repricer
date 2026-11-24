@@ -1,4 +1,5 @@
 importScripts('extract.js', 'history.js');
+importScripts('pilot-products.js','pilot-queue.js');
 
 const alarmName = 'ozonSingleMeasurement';
 const sku = '275647765';

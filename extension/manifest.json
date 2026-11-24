@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Проверка серой цены Ozon",
-  "version": "0.6.0",
-  "description": "Сверка цены Шумофф М3 с прайсом в открытой вкладке Ozon.",
+  "version": "0.7.0",
+  "minimum_chrome_version": "120",
+  "description": "Сбор цен витрины Ozon: М3 и пилот трёх товаров без изменения цен.",
   "permissions": [
     "activeTab",
     "scripting",

@@ -17,7 +17,7 @@ function readOzonCard() {
     let state;
     try { state = JSON.parse(node.dataset.state); } catch { continue; }
     if (!state?.link) continue;
-    if (new URL(state.link, url).searchParams.get('product_id') === sku) matches.push(state);
+    try {if (new URL(state.link, url).searchParams.get('product_id') === sku) matches.push(state);}catch{continue;}
   }
   if (matches.length !== 1) return { error: 'Не удалось однозначно найти блок цен этого артикула.' };
   const state = matches[0];
@@ -30,5 +30,5 @@ function readOzonCard() {
   const isMoscow = [...document.querySelectorAll('script:not([src])')].some(node => {
     return node.textContent.includes("window.__NUXT__.state=") && /"fullName":"[^"]*Москва[^"]*","name":"Москва"/u.test(node.textContent);
   });
-  return { sku, grayRub, greenRub, isMoscow, readAt: new Date().toISOString() };
+  return { sku, grayRub, greenRub, isMoscow, isAvailable:true,pageUrl:url.origin+url.pathname,readAt: new Date().toISOString() };
 }

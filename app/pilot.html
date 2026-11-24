@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Шумоff · Пилот трёх товаров</title>
+<link rel="stylesheet" href="/brand.css">
+<body>
+<aside class="sidebar" aria-label="Навигация">
+ <a class="brand" href="/" aria-label="Шумофф — каталог товаров"><img src="/shumoff-logo.png" alt="Шумоff" width="150" height="70"></a>
+ <div class="workspace-label">Рабочее пространство</div>
+ <nav class="side-nav">
+  <a href="/" title="Каталог товаров"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Каталог товаров</span></a>
+  <a href="/pilot" class="active" aria-current="page" title="Пилот трёх товаров"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5m0 14h16M8 14l4-5 4 3 4-7"/></svg><span>Пилот: 3 товара</span></a>
+  <a href="/m3"  title="Мониторинг М3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17V4h18v13H3Zm5 4h8m-4-4v4M6 11h3l2-4 3 7 2-3h2"/></svg><span>Мониторинг М3</span></a>
+  <a href="/#changes" title="Журнал изменений"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8a8.5 8.5 0 1 1-1 7M4 3v5h5m3-1v6l4 2"/></svg><span>Журнал изменений</span></a>
+ </nav>
+ <div class="sidebar-footer"><span class="brand-rule"></span><strong>ПЛЕЯДА</strong><small>Каталог и управление<br>ценами на Ozon</small></div>
+</aside>
+<div class="workspace"><div class="topbar"><span class="topbar-title"><b>ПЛЕЯДА</b>Управление ценами Ozon</span><span class="workspace-badge">Кабинет продавца</span></div>
+<main class="pilot-page">
+<header class="page-heading"><div><div class="eyebrow">Сбор витрины и расчёт</div><h1>Пилот: три товара</h1><p class="page-description">Московские цены витрины и автоматическая проверка правил.</p></div><span class="analysis-badge">Без записи цен</span></header>
+<section class="pilot-help"><strong>Обход запускается в расширении Chrome версии 0.7.0.</strong><p>Один товар в минуту, новый круг каждые 30 минут. Здесь появляются замеры, предложения и причины пропуска. Для расчёта задайте минимальную предельную цену каждого товара.</p></section>
+<div class="pilot-toolbar"><label class="button">Импорт порогов JSON<input id="pilot-import" type="file" accept=".json,application/json" hidden></label><button id="reload-pilot">Обновить экран</button><span id="pilot-message" role="status"></span></div>
+<div id="pilot-products"></div>
+<footer class="page-footer"><span><strong>Шумоff</strong> · Плеяда</span><span>Пилот работает только на чтение</span></footer>
+</main></div>
+<script>
+const el=id=>document.getElementById(id);
+const money=n=>n==null?'—':new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(n)+' ₽';
+const clock=t=>t?new Date(t).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'}):'—';
+const reasonText={no_measurement:'Ожидаем первый замер от расширения.',measurement_unconfirmed:'Товар, Москва или доступность не подтверждены.',measurement_stale:'Замер устарел. Нужен свежий обход.',green_unconfirmed:'Зелёная цена не подтверждена.',target_unset:'Задайте ориентир серой цены.',green_floor_unset:'Задайте нижний порог зелёной цены.',green_below_floor:'Зелёная цена ниже установленного порога.',at_target:'Серая цена находится в пределах допуска к ориентиру.',write_unconfirmed:'Предыдущая запись цены не подтверждена.',seller_floor_unset:'Задайте минимальную предельную цену продавца.',seller_not_configured:'Не настроен ключ Seller API на чтение.',seller_price_unconfirmed:'Seller API не подтвердил товар и цену.',seller_unreachable:'Seller API недоступен.',promotion_limit_unconfirmed:'Ограничение акций не подтверждено.',seller_fields_differ:'Предельная цена и ограничение акций различаются. Требуется проверка.',seller_changed_externally:'Предельная цена изменена вне последней подтверждённой записи.',waiting_for_post_write_measurement:'Нужен замер витрины после последней записи.',cooldown:'Действует пауза после последней записи.',daily_limit:'Достигнут дневной лимит изменений.',step_too_large:'Шаг превышает 3% текущей предельной цены.',seller_floor:'Достигнута минимальная предельная цена.',green_at_floor:'Зелёная цена на нижнем пороге. Снижение пропущено.',price_out_of_range:'Предлагаемая цена вне допустимого диапазона.',policy_step_proposed:'Предложение рассчитано без отправки в Ozon.'};
+let state={products:[]},busy=false;
+const dirty=new Set();
+function node(tag,text,className){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(className)n.className=className;return n;}
+async function api(url,body){const res=await fetch(url,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const value=await res.json();if(!res.ok)throw Error(value.error||'Не удалось выполнить запрос.');return value;}
+const reason=d=>d?(reasonText[d.reason]||d.reason.replace(/^seller_http_/,'Seller API: HTTP ')):'Ожидаем первый расчёт.';
+function metric(label,value,note){const div=node('div',undefined,'pilot-metric');div.append(node('small',label),node('strong',value));if(note)div.append(node('small',note));return div;}
+function input(form,name,label,value,min,max,step='1',required=true){const wrap=node('label',label),field=node('input');field.name=name;field.type='number';field.value=value??'';field.min=min;field.step=step;if(max!==undefined)field.max=max;field.required=required;wrap.append(field);form.append(wrap);return field;}
+function render(){
+ const root=el('pilot-products');root.replaceChildren(...state.products.map(p=>{
+  const section=node('section',undefined,'history pilot-product');
+  const heading=node('div',undefined,'pilot-product-heading'),title=node('div');title.append(node('h2',p.name),node('small',p.sellerOfferId+' · SKU '+p.sku));
+  const link=node('a','Карточка Ozon','button');link.href='https://www.ozon.ru/product/'+p.sku+'/';link.target='_blank';link.rel='noopener noreferrer';heading.append(title,link);section.append(heading);
+  if(p.error){section.append(node('p',p.error+' Импортируйте основной каталог.','pilot-result'));return section;}
+  const card=p.measurement,decision=p.decision;
+  const current=decision&&decision.settingsUpdatedAt===p.settingsUpdatedAt;
+  const metrics=node('div',undefined,'pilot-metrics');
+  metrics.append(metric('Серая цена',money(card?.grayRub),'Ориентир '+money(p.grayTargetRub)),metric('Зелёная цена',money(card?.greenRub),'Порог '+money(p.policy.greenFloorRub)),metric('Предельная при расчёте',money(decision?.sellerPriceRub),'Минимум '+money(p.floorRub)),metric('Предложение',current?money(decision?.proposal?.priceRub):'—','Расчёт без записи'));
+  section.append(metrics,node('p','Замер витрины: '+clock(card?.readAt)+' · Расчёт: '+clock(decision?.checkedAt),'pilot-timestamps'));
+  const text=current?reason(decision):decision?'Настройки изменились после расчёта. Запустите проверку ещё раз.':'Ожидаем замер и первый расчёт.';
+  section.append(node('p',text,'pilot-result'));
+  const form=node('form');form.className='pilot-settings';form.setAttribute('aria-label','Настройки '+p.sellerOfferId);
+  input(form,'grayTargetRub','Ориентир серой цены, ₽',p.grayTargetRub,'.01',100000000,'.01');
+  input(form,'floorRub','Минимальная предельная, ₽',p.floorRub,'.01',100000000,'.01',false);
+  input(form,'greenFloorRub','Нижний порог зелёной, ₽',p.policy.greenFloorRub,'.01',100000000,'.01');
+  input(form,'stepRub','Шаг предельной цены, ₽',p.policy.stepRub,'.01',1000,'.01');
+  input(form,'cooldownMinutes','Пауза после записи, мин',p.policy.cooldownMinutes,1,1440);
+  input(form,'maxDailyChanges','Изменений за 24 часа',p.policy.maxDailyChanges,1,24);
+  input(form,'toleranceRub','Допуск к ориентиру, ₽',p.policy.toleranceRub,0,100,'.01');
+  form.addEventListener('input',()=>dirty.add(p.sku));
+  const actions=node('div',undefined,'pilot-actions'),save=node('button','Сохранить правила','primary'),check=node('button','Проверить расчёт');save.type='submit';check.type='button';actions.append(save,check);form.append(actions);section.append(form);
+  form.onsubmit=async event=>{event.preventDefault();if(busy)return;busy=true;save.disabled=true;
+   try{const values=Object.fromEntries([...new FormData(form)].map(([key,value])=>[key,value===''?null:Number(value)]));await api('/pilot/api/settings',{sku:p.sku,grayTargetRub:values.grayTargetRub,floorRub:values.floorRub,policy:{greenFloorRub:values.greenFloorRub,stepRub:values.stepRub,cooldownMinutes:values.cooldownMinutes,maxDailyChanges:values.maxDailyChanges,toleranceRub:values.toleranceRub}});dirty.delete(p.sku);el('pilot-message').textContent='Правила сохранены. Проверка цены выполняется без записи.';await load();}
+   catch(error){el('pilot-message').textContent=error.message;}finally{busy=false;save.disabled=false;}};
+  check.onclick=async()=>{if(busy)return;if(dirty.size){el('pilot-message').textContent='Сначала сохраните изменённые правила.';return;}busy=true;check.disabled=true;
+   try{await api('/pilot/api/check',{sku:p.sku});await load();el('pilot-message').textContent='Расчёт сохранён. Цена в Ozon не менялась.';}catch(error){el('pilot-message').textContent=error.message;}finally{busy=false;check.disabled=false;}};
+  const details=node('details'),summary=node('summary','История расчётов · '+p.decisions.length);details.append(summary);
+  const scroll=node('div',undefined,'table-scroll'),table=node('table'),thead=node('thead'),head=node('tr');for(const label of ['Время, МСК','Серая','Зелёная','Предложение','Решение'])head.append(node('th',label));thead.append(head);table.append(thead);
+  const body=node('tbody');for(const d of p.decisions){const row=node('tr');for(const value of [clock(d.checkedAt),money(d.grayRub),money(d.greenRub),money(d.proposal?.priceRub),reason(d)])row.append(node('td',value));body.append(row);}table.append(body);scroll.append(table);details.append(scroll);section.append(details);
+  return section;
+ }));
+}
+async function load(){state=await api('/pilot/api');if(!dirty.size)render();}
+el('reload-pilot').onclick=()=>{if(dirty.size){el('pilot-message').textContent='Сначала сохраните изменённые правила.';return;}load().catch(e=>el('pilot-message').textContent=e.message);};
+el('pilot-import').onchange=async()=>{const field=el('pilot-import'),file=field.files[0];if(!file)return;
+ try{if(dirty.size)throw Error('Сначала сохраните изменённые правила.');const value=JSON.parse((await file.text()).replace(/^\uFEFF/,''));await api('/pilot/api/import',value);await load();el('pilot-message').textContent='Пороги трёх товаров сохранены. Укажите минимальные предельные цены.';}catch(error){el('pilot-message').textContent=error.message;}finally{field.value='';}};
+load().catch(error=>el('pilot-message').textContent=error.message);
+setInterval(()=>{if(!busy&&!dirty.size)load().catch(()=>{});},10000);
+</script>
+</body></html>
